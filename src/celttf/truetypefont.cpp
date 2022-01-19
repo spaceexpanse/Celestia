@@ -472,7 +472,7 @@ TextureFontPrivate::flush()
 
     std::vector<unsigned short> indexes;
     indexes.reserve(m_fontVertices.size() / 4 * 6);
-    for (unsigned short index = 0; index < (unsigned short)m_fontVertices.size(); index += 4)
+    for (unsigned short index = 0; index < static_cast<unsigned short>(m_fontVertices.size()); index += 4)
     {
         indexes.push_back(index + 0);
         indexes.push_back(index + 1);
@@ -730,11 +730,11 @@ ParseFontName(const fs::path &filename, int &index, int &size)
     auto fn = filename.string();
     if (auto ps = fn.rfind(','); ps != std::string::npos)
     {
-        if (auto [_, ec] = from_chars(&fn[ps + 1], &fn[fn.size()], size); ec == std::errc())
+        if (from_chars(&fn[ps + 1], &fn[fn.size()], size).ec == std::errc())
         {
             if (auto pi = fn.rfind(',', ps - 1); pi != std::string::npos)
             {
-                if (auto [_, ec] = from_chars(&fn[pi + 1], &fn[pi], index); ec == std::errc())
+                if (from_chars(&fn[pi + 1], &fn[pi], index).ec == std::errc())
                     return fn.substr(0, pi);
             }
             return fn.substr(0, ps);
@@ -765,7 +765,8 @@ LoadTextureFont(const Renderer *r, const fs::path &filename, int index, int size
 
     // Lookup for an existing cached font
     std::weak_ptr<TextureFont> &font = (*fontCache)[filename];
-    if (font.expired())
+    std::shared_ptr<TextureFont> ret = font.lock();
+    if (ret == nullptr)
     {
         int  psize    = 12; // default size if missing
         int  pindex   = 0;
@@ -777,7 +778,7 @@ LoadTextureFont(const Renderer *r, const fs::path &filename, int index, int size
         if (face == nullptr)
             return nullptr;
 
-        auto ret = std::make_shared<TextureFont>(r);
+        ret = std::make_shared<TextureFont>(r);
         ret->impl->m_face = face;
 
         if (!ret->impl->buildAtlas())
@@ -790,7 +791,6 @@ LoadTextureFont(const Renderer *r, const fs::path &filename, int index, int size
         ret->setMaxDescent(static_cast<int>(-face->size->metrics.descender >> 6));
 
         font = ret;
-        return ret;
     }
-    return font.lock();
+    return ret;
 }
